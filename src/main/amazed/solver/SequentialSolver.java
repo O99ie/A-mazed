@@ -146,6 +146,7 @@ public class SequentialSolver
                     // nb can be reached from current (i.e., current is nb's predecessor)
                     if (!visited.contains(nb))
                         predecessor.put(nb, current);
+			
                 }
             }
         }
