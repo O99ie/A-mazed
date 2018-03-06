@@ -72,7 +72,6 @@ public class ForkJoinSolver
             // next: the next element in the set 'options'
             Integer next;
 
-            visited.add(current);
             switch(options.size()){
                 case 0:
                     return true;
@@ -80,23 +79,24 @@ public class ForkJoinSolver
                     next = (Integer) it.next();
                     maze.move(player, next);
                     predecessor.put(next, current);
-                    visited.add(current);
+                    visited.add(next);
                     current = next;
                     break;
                 default:
                     // Nodes: a list of threads spawned by this thread
                     List<ForkJoinSolver> nodes = new ArrayList();
 
-                    visited.add(current);
                     while (it.hasNext()){
                         next = (Integer) it.next();
                         predecessor.put(next, current);
                         if(it.hasNext()){
+                            visited.add(next);
                             ForkJoinSolver subSearch = new ForkJoinSolver(next, visited, predecessor, maze);
                             subSearch.fork();
                             nodes.add(subSearch);
                         }else{
                             maze.move(player, next);
+                            visited.add(next);
                             current = next;
                         }
                         
