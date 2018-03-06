@@ -7,7 +7,8 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.*;
+import java.util.Iterator;
 
 /**
  * <code>ForkJoinSolver</code> implements a solver for
@@ -21,8 +22,15 @@ import java.util.concurrent.ConcurrentSkipListSet;
 
 public class ForkJoinSolver
     extends SequentialSolver
-    implements Runnable
 {
+    // begin: The tile ID of this threads starting position
+    private Integer begin;
+    // visited, predecessor: shared versions of their super-namesakes
+    static Set<Integer> visited; // Public?
+    static Map<Integer, Integer> predecessor;
+    // result: a variable where we save the result
+    static List<Integer> result = new ArrayList();;
+
     /**
      * Creates a solver that searches in <code>maze</code> from the
      * start node to a goal.
@@ -32,50 +40,81 @@ public class ForkJoinSolver
     public ForkJoinSolver(Maze maze)
     {
         super(maze);
-        ForkJoinSearch(maze);
-    }
-    
-    public List<Integer> ForkJoinSearch(Maze maze){
-        return ForkJoinSearch(maze, new HashMap<>());
+        begin = start;
+        visited = super.visited;
+        predecessor = super.predecessor;
+        ForkJoinPool.commonPool().invoke(this);
     }
 
-    private List<Integer> ForkJoinSearch(Maze maze, Map<Integer, Integer> predecessor){
-        int player = maze.newPlayer(start);
-        int current = start;        
-        
+    public ForkJoinSolver(Integer n, Set<Integer> v, Map<Integer, Integer> p,  Maze maze)
+    {
+        super(maze);
+        begin = n;
+        visited = v;
+        predecessor = p;
+    }
+
+    
+    // Returns true when done
+    private boolean parallelSearch(){
+        Integer current = begin;        
+        int player = maze.newPlayer(current);
+        while(true){
             // If we stand on goal
             if(maze.hasGoal(current)){
-                return pathFromTo(start, current);
+                super.predecessor = predecessor;
+                result = pathFromTo(start, current);
+                return true;
             }
-            Integer[] options = whereToGo(maze.neighbors(current), visited);
-            switch(options.length){
-                case 0:
-                    return null;
-                case 1:
-                    maze.move(player, options[0]);
-                    visited.add(current);
-                    predecessor.put(options[0], current);
-                    current = options[0];
-                default:
-                    maze.move(player, options[0]);
-                    visited.add(current);
-                    predecessor.put(options[0], current);
-                    for (int node: options){
-                        //TODO hur gör man x antal Threads??
-                    }
-            }
+            // options: a set of not-yet visited neighbors
+            Set<Integer> options = whereToGo(maze.neighbors(current), visited);
+            Iterator it = options.iterator();
+            // next: the next element in the set 'options'
+            Integer next;
 
-        return null;
+            visited.add(current);
+            switch(options.size()){
+                case 0:
+                    return true;
+                case 1:
+                    next = (Integer) it.next();
+                    maze.move(player, next);
+                    predecessor.put(next, current);
+                    visited.add(current);
+                    current = next;
+                    break;
+                default:
+                    // Nodes: a list of threads spawned by this thread
+                    List<ForkJoinSolver> nodes = new ArrayList();
+
+                    visited.add(current);
+                    while (it.hasNext()){
+                        next = (Integer) it.next();
+                        predecessor.put(next, current);
+                        if(it.hasNext()){
+                            ForkJoinSolver subSearch = new ForkJoinSolver(next, visited, predecessor, maze);
+                            subSearch.fork();
+                            nodes.add(subSearch);
+                        }else{
+                            maze.move(player, next);
+                            current = next;
+                        }
+                        
+                    }
+                    for(ForkJoinSolver node : nodes){
+                        node.join();
+                    }
+                    break;
+            }
+        }
     }
 
     /**
      * Takes a set of nodes and returns those not yet visited
      */
-    private Integer[] whereToGo(Set<Integer> neighbors, Set<Integer> visited){
+    private Set<Integer> whereToGo(Set<Integer> neighbors, Set<Integer> visited){
         neighbors.removeAll(visited);
-        Integer[] a = new Integer[0]; //'a' will be overwritten by an array of correct size if needed
-        neighbors.toArray(a);
-        return a;
+        return neighbors;
     }
 
     /**
@@ -107,13 +146,8 @@ public class ForkJoinSolver
      *           be found.
      */
     @Override
-    public List<Integer> compute()
-    {
-        return parallelSearch();
-    }
-
-    private List<Integer> parallelSearch()
-    {
-        return null;
+    public List<Integer> compute(){
+        parallelSearch();
+        return result;
     }
 }
