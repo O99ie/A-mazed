@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Iterator;
 
 /**
@@ -29,7 +30,7 @@ public class ForkJoinSolver
     static Set<Integer> visited; // Public?
     static Map<Integer, Integer> predecessor;
     // result: a variable where we save the result
-    static List<Integer> result = new ArrayList();;
+    static List<Integer> result = new ArrayList();
 
     /**
      * Creates a solver that searches in <code>maze</code> from the
@@ -55,8 +56,7 @@ public class ForkJoinSolver
     }
 
     
-    // Returns true when done
-    private boolean parallelSearch(){
+    private List<Integer> parallelSearch(){
         Integer current = begin;        
         int player = maze.newPlayer(current);
         while(true){
@@ -64,7 +64,7 @@ public class ForkJoinSolver
             if(maze.hasGoal(current)){
                 super.predecessor = predecessor;
                 result = pathFromTo(start, current);
-                return true;
+                return result;
             }
             // options: a set of not-yet visited neighbors
             Set<Integer> options = whereToGo(maze.neighbors(current), visited);
@@ -74,7 +74,7 @@ public class ForkJoinSolver
 
             switch(options.size()){
                 case 0:
-                    return true;
+                    return null;
                 case 1:
                     next = (Integer) it.next();
                     maze.move(player, next);
