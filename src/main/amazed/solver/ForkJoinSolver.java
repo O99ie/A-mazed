@@ -41,18 +41,22 @@ public class ForkJoinSolver
     public ForkJoinSolver(Maze maze)
     {
         super(maze);
-        begin = start;
-        visited = super.visited;
-        predecessor = super.predecessor;
-        ForkJoinPool.commonPool().invoke(this);
+        synchronized(this){
+            begin = start;
+            visited = super.visited;
+            predecessor = super.predecessor;
+            ForkJoinPool.commonPool().invoke(this);
+        }
     }
 
     public ForkJoinSolver(Integer n, Set<Integer> v, Map<Integer, Integer> p,  Maze maze)
     {
         super(maze);
-        begin = n;
-        visited = v;
-        predecessor = p;
+        synchronized(this){
+            begin = n;
+            visited = v;
+            predecessor = p;
+        }
     }
 
     
@@ -62,9 +66,11 @@ public class ForkJoinSolver
         while(true){
             // If we stand on goal
             if(maze.hasGoal(current)){
-                super.predecessor = predecessor;
-                result = pathFromTo(start, current);
-                return result;
+                synchronized(this){
+                    super.predecessor = predecessor;
+                    result = pathFromTo(start, current);
+                    return result;
+                }
             }
             // options: a set of not-yet visited neighbors
             Set<Integer> options = whereToGo(maze.neighbors(current), visited);
@@ -76,30 +82,34 @@ public class ForkJoinSolver
                 case 0:
                     return null;
                 case 1:
-                    next = (Integer) it.next();
-                    maze.move(player, next);
-                    predecessor.put(next, current);
-                    visited.add(next);
-                    current = next;
+                    synchronized(this){
+                        next = (Integer) it.next();
+                        maze.move(player, next);
+                        predecessor.put(next, current);
+                        visited.add(next);
+                        current = next;
+                    }
                     break;
                 default:
                     // Nodes: a list of threads spawned by this thread
                     List<ForkJoinSolver> nodes = new ArrayList();
 
-                    while (it.hasNext()){
-                        next = (Integer) it.next();
-                        predecessor.put(next, current);
-                        if(it.hasNext()){
-                            visited.add(next);
-                            ForkJoinSolver subSearch = new ForkJoinSolver(next, visited, predecessor, maze);
-                            subSearch.fork();
-                            nodes.add(subSearch);
-                        }else{
-                            maze.move(player, next);
-                            visited.add(next);
-                            current = next;
+                    synchronized(this){
+                        while (it.hasNext()){
+                            next = (Integer) it.next();
+                            predecessor.put(next, current);
+                            if(it.hasNext()){
+                                visited.add(next);
+                                ForkJoinSolver subSearch = new ForkJoinSolver(next, visited, predecessor, maze);
+                                subSearch.fork();
+                                nodes.add(subSearch);
+                            }else{
+                                maze.move(player, next);
+                                visited.add(next);
+                                current = next;
+                            }
+                            
                         }
-                        
                     }
                     for(ForkJoinSolver node : nodes){
                         node.join();
